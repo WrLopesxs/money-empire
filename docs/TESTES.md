@@ -1,5 +1,11 @@
 # Validação do MVP
 
+## UX e arquitetura nativa
+
+`tests/ux.spec.luau` adiciona sete testes: guia a partir de $1; avanço e conclusão com progresso existente; filtro do catálogo; catálogo completo; dimensões, materiais e limite de 30 peças em todos os 150 níveis de modelos; silhuetas distintas e evolução; formatação monetária com centavos.
+
+No Studio, conferir: entrada de ambos os lados da avenida; personagem olhando para os negócios; uso do terminal somente pelo dono e a curta distância; execução dos três marcos do guia; previews enquanto rola e fecha o catálogo; confirmação de compra/venda, cancelamento e cotação alterada. Medir desempenho em celular e inspecionar iluminação e colisões. A geração do arquivo e os testes de dados não constituem uma validação visual do motor.
+
 ## Mercado, carteira e menu compacto
 
 `tests/market.spec.luau` adiciona 14 cenários: migração de perfis antigos; rejeição de dados inválidos; taxas de compra/venda; cotação vencida; payload adulterado; saldo e posse insuficientes; venda parcial com custo médio; patrimônio a mercado; histórico limitado; cotações iguais entre servidores; estabilidade entre atualizações; duração dos eventos; multiplicador na renda; dimensões de menu em telefone, paisagem, tablet e desktop.

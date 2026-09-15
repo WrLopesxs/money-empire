@@ -76,7 +76,7 @@ Players.PlayerRemoving:Connect(function(player)
     World.release(player); limits[player] = nil; lastWork[player] = nil; lastHome[player] = nil
     Data.save(player, true)
 end)
-action.OnServerEvent:Connect(function(player, kind, payload)
+local function performAction(player, kind, payload)
     limits[player] = limits[player] or {}
     local now = os.clock()
     if not Limiter.allow(limits[player], now, Config.RemoteBurst, Config.RemotePerSecond) then return end
@@ -85,6 +85,7 @@ action.OnServerEvent:Connect(function(player, kind, payload)
     if not session or not Data.usable(session) then return end
     local p, ok, message = session.Profile, false, nil
     if kind == "Sync" then sentMarket[player] = nil; send(player); return
+    elseif kind == "OpenBusinesses" then feedback:FireClient(player,true,"Gerencie seu império.","OpenBusinesses"); return
     elseif kind == "InvestBuy" or kind == "InvestSell" then
         ok, message = Investments.trade(p, if kind == "InvestBuy" then "Buy" else "Sell", payload, currentMarket(), os.time())
     elseif kind == "Work" then
@@ -108,7 +109,9 @@ action.OnServerEvent:Connect(function(player, kind, payload)
         end
         send(player)
     end
-end)
+end
+action.OnServerEvent:Connect(performAction)
+World.OnInteract=performAction
 local elapsed, snapshotElapsed = 0, 0
 RunService.Heartbeat:Connect(function(dt)
     if closing then return end

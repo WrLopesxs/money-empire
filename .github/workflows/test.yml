@@ -19,5 +19,6 @@ jobs:
         run: |
           /tmp/luau/luau tests/economy.spec.luau
           /tmp/luau/luau tests/market.spec.luau
+          /tmp/luau/luau tests/ux.spec.luau
       - name: Test archive verification
         run: python3 tests/test_installer.py

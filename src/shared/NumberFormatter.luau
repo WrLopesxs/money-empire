@@ -13,4 +13,8 @@ function Formatter.compact(value)
     return sign .. text .. suffixes[tier]
 end
 function Formatter.money(value) return "$" .. Formatter.compact(value) end
+function Formatter.preciseMoney(value)
+    if type(value)~="number" or value~=value or math.abs(value)==math.huge then return "$0.00" end
+    return (if value<0 then "-$" else "$")..string.format("%.2f",math.abs(value))
+end
 return Formatter

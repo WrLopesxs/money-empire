@@ -2,6 +2,17 @@
 
 Primeira entrega: **MVP em Luau**, conforme a última instrução do briefing. Código completo em `src/` e arquivo de Studio em `build/MoneyEmpire.rbxlx`.
 
+## Atualização de UX e modelos 3D
+
+- Negócios com modelos originais de peças Roblox: toldos, vitrines, chaminés, fachadas e observatório espacial.
+- Avenida com calçadas, árvores e postes; entradas dos terrenos voltadas para a rua e spawn voltado para os negócios.
+- Guia de três passos, miniaturas 3D e catálogo que prioriza o próximo desbloqueio. Botões indicam quanto falta para comprar.
+- Terminal físico para abrir o menu: **F** ou toque, dentro do próprio terreno.
+- Confirmação de investimentos com preço, taxa e total em centavos; cotações alteradas exigem uma nova conferência.
+- Prédios e cofre atualizados separadamente; no máximo quatro miniaturas ativas no menu.
+
+Detalhes, limites de geometria e orientação para futuras meshes: [direção visual](docs/DIRECAO-VISUAL.md). Os modelos não dependem de Mesh IA ou assets externos. A conferência visual dentro do Studio continua pendente.
+
 ## Atualização: menu compacto, mercado e investimentos
 
 O menu agora **começa fechado**. O HUD fica no canto superior esquerdo, com no máximo 384 px de largura; **Menu [B]** abre um painel lateral de até 360 px. O tamanho considera a área segura da tela, incluindo o espaço reservado pelo Roblox. Feche pelo **×** ou pela tecla **B**. O ranking reutiliza suas linhas, preservando a rolagem durante as atualizações.
@@ -120,6 +131,9 @@ scripts\run-python.cmd tests\test_installer.py
 | `src/shared/Economy.luau` | `ReplicatedStorage/Modules/Economy` | ModuleScript: regras determinísticas |
 | `src/shared/NumberFormatter.luau` | `ReplicatedStorage/Modules/NumberFormatter` | ModuleScript: $1, K, M, B até Dc |
 | `src/shared/UILayout.luau` | `ReplicatedStorage/Modules/UILayout` | ModuleScript: dimensões do HUD e painel lateral |
+| `src/shared/UXModel.luau` | `ReplicatedStorage/Modules/UXModel` | ModuleScript: guia inicial e prioridade de catálogo |
+| `src/shared/BusinessBlueprint.luau` | `ReplicatedStorage/Modules/BusinessBlueprint` | ModuleScript: geometria original, em dados |
+| `src/shared/BusinessVisual.luau` | `ReplicatedStorage/Modules/BusinessVisual` | ModuleScript: instancia os modelos no mapa e nas miniaturas |
 | `src/shared/MarketConfig.luau` | `ReplicatedStorage/Modules/MarketConfig` | ModuleScript: setores, eventos, lotes e taxa |
 | `src/shared/MarketModel.luau` | `ReplicatedStorage/Modules/MarketModel` | ModuleScript: cotações, gráficos e multiplicadores |
 | `src/shared/InvestmentModel.luau` | `ReplicatedStorage/Modules/InvestmentModel` | ModuleScript: carteira, operações e validação |
