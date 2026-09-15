@@ -1,0 +1,23 @@
+name: Validate Luau
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  luau:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download official Luau compiler and runtime
+        run: |
+          curl --fail --location --retry 3 https://github.com/luau-lang/luau/releases/download/0.738/luau-ubuntu.zip -o /tmp/luau.zip
+          unzip -q /tmp/luau.zip -d /tmp/luau
+          chmod +x /tmp/luau/luau /tmp/luau/luau-compile
+      - name: Compile all Luau sources
+        run: find src tests -name '*.luau' -print0 | xargs -0 -n 1 /tmp/luau/luau-compile --null
+      - name: Run economy, market and layout tests
+        run: |
+          /tmp/luau/luau tests/economy.spec.luau
+          /tmp/luau/luau tests/market.spec.luau
+      - name: Test archive verification
+        run: python3 tests/test_installer.py

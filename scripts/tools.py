@@ -132,10 +132,13 @@ def test(compile_sources=False):
     if compile_sources:
         for source in files:
             run([TOOLS / 'luau' / 'luau-compile.exe', '--null', source], stdout=subprocess.DEVNULL)
-    result = run([TOOLS / 'luau' / 'luau.exe', 'tests/economy.spec.luau'], capture_output=True, text=True)
-    print(result.stdout)
+    outputs = []
+    for suite in sorted((ROOT / 'tests').glob('*.spec.luau')):
+        result = run([TOOLS / 'luau' / 'luau.exe', suite], capture_output=True, text=True, encoding='utf-8')
+        outputs.append(result.stdout)
+        print(result.stdout)
     build()
-    report = {'time_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'compiled_files': len(files) if compile_sources else 0, 'test_output': result.stdout, 'build': str(BUILD), 'studio_installed': str(studio_exe()) if studio_exe() else None, 'engine_playtest': 'not_run', 'cloud_datastore_test': 'not_run'}
+    report = {'time_utc': time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()), 'compiled_files': len(files) if compile_sources else 0, 'test_output': '\n'.join(outputs), 'build': 'build/MoneyEmpire.rbxlx', 'studio_installed': bool(studio_exe()), 'engine_playtest': 'not_run', 'cloud_datastore_test': 'not_run'}
     (ROOT / 'docs' / 'test-results.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
     print('Testes e build: OK. Testes do motor 3D e DataStore online sao separados.')
 

@@ -1,11 +1,12 @@
 -- Pure Luau domain logic: the same implementation runs in Roblox and in CLI tests.
 local Config = require(if script then script.Parent.GameConfig else "./GameConfig")
+local Investments = require(if script then script.Parent.InvestmentModel else "./InvestmentModel")
 local Economy = {}
 local function finite(n, minimum, maximum)
     return type(n) == "number" and n == n and n >= minimum and n <= maximum
 end
 function Economy.newProfile()
-    return { Version = 1, Cash = Config.StartingCash, Businesses = {}, Collection = {}, LifetimeEarned = 0, WorkCount = 0, Settings = { ReducedMotion = false }, Revision = 0 }
+    return { Version = 1, Cash = Config.StartingCash, Businesses = {}, Collection = {}, LifetimeEarned = 0, WorkCount = 0, Settings = { ReducedMotion = false }, Revision = 0, Investments = {}, Trades = {}, RealizedProfit = 0 }
 end
 function Economy.validate(p)
     if type(p) ~= "table" or p.Version ~= 1 then return false end
@@ -23,23 +24,25 @@ function Economy.validate(p)
     for id, discovered in pairs(p.Collection) do
         if not Config.Businesses[id] or discovered ~= true then return false end
     end
-    return true
+    return Investments.validate(p)
 end
-function Economy.incomeFor(id, owned)
-    return Config.Businesses[id].Income * Config.UpgradeIncomeGrowth ^ (owned.Level - 1) * Config.Variants[owned.Variant]
+function Economy.incomeFor(id, owned, multipliers)
+    local category = Config.Businesses[id].Category
+    local marketBoost = if multipliers then multipliers[category] or 1 else 1
+    return Config.Businesses[id].Income * Config.UpgradeIncomeGrowth ^ (owned.Level - 1) * Config.Variants[owned.Variant] * marketBoost
 end
-function Economy.income(p)
+function Economy.income(p, multipliers)
     local total = 0
-    for id, owned in pairs(p.Businesses) do total += Economy.incomeFor(id, owned) end
+    for id, owned in pairs(p.Businesses) do total += Economy.incomeFor(id, owned, multipliers) end
     return total
 end
-function Economy.netWorth(p)
-    local total = p.Cash
+function Economy.netWorth(p, prices)
+    local total = p.Cash + Investments.value(p, prices)
     for _, owned in pairs(p.Businesses) do total += math.floor(owned.Invested * Config.ResaleRatio) end
     return total
 end
-function Economy.title(p)
-    local result, worth = Config.Titles[1].Name, Economy.netWorth(p)
+function Economy.title(p, prices)
+    local result, worth = Config.Titles[1].Name, Economy.netWorth(p, prices)
     for _, entry in ipairs(Config.Titles) do if worth >= entry.Value then result = entry.Name end end
     return result
 end
@@ -84,9 +87,9 @@ function Economy.upgrade(p, id)
     owned.Level += 1
     return true, "Upgrade concluído!"
 end
-function Economy.tick(p, elapsed)
+function Economy.tick(p, elapsed, multipliers)
     if not finite(elapsed, 0, 10) then return false end
-    return Economy.credit(p, Economy.income(p) * elapsed)
+    return Economy.credit(p, Economy.income(p, multipliers) * elapsed)
 end
 function Economy.count(p)
     local n = 0

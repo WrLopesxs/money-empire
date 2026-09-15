@@ -1,0 +1,28 @@
+return {
+    QuoteSeconds = 15,
+    EventSeconds = 480,
+    EventDuration = 180,
+    ChartPoints = 24,
+    Fee = 0.02,
+    MaxShares = 1000000000,
+    HistoryLimit = 20,
+    Lots = { 1, 10, 100 },
+    SectorOrder = { "Tech", "Energy", "Food", "Real Estate", "Luxury", "Transport", "Finance" },
+    Sectors = {
+        Tech = { Name = "Tecnologia", BasePrice = 100 },
+        Energy = { Name = "Energia", BasePrice = 70 },
+        Food = { Name = "Alimentação", BasePrice = 20 },
+        ["Real Estate"] = { Name = "Imóveis", BasePrice = 150 },
+        Luxury = { Name = "Luxo", BasePrice = 120 },
+        Transport = { Name = "Transporte", BasePrice = 50 },
+        Finance = { Name = "Finanças", BasePrice = 80 },
+    },
+    Events = {
+        { Name = "TECH BOOM", Description = "Tecnologia: renda +300%", Sector = "Tech", Income = 4, Price = 1.20 },
+        { Name = "FOOD TREND", Description = "Alimentação: renda +200%", Sector = "Food", Income = 3, Price = 1.15 },
+        { Name = "ENERGY CRASH", Description = "Energia: renda -50%", Sector = "Energy", Income = 0.5, Price = 0.85 },
+        { Name = "REAL ESTATE BOOM", Description = "Imóveis: renda +100%", Sector = "Real Estate", Income = 2, Price = 1.18 },
+        { Name = "GOLD RUSH", Description = "Todos os negócios: renda +50%", Sector = "All", Income = 1.5, Price = 1.08 },
+        { Name = "MARKET CRASH", Description = "Todos os negócios: renda -25%", Sector = "All", Income = 0.75, Price = 0.88 },
+    },
+}

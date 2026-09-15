@@ -1,5 +1,13 @@
 # Validação do MVP
 
+## Mercado, carteira e menu compacto
+
+`tests/market.spec.luau` adiciona 14 cenários: migração de perfis antigos; rejeição de dados inválidos; taxas de compra/venda; cotação vencida; payload adulterado; saldo e posse insuficientes; venda parcial com custo médio; patrimônio a mercado; histórico limitado; cotações iguais entre servidores; estabilidade entre atualizações; duração dos eventos; multiplicador na renda; dimensões de menu em telefone, paisagem, tablet e desktop.
+
+A suíte `Validate Luau` no GitHub compila todos os arquivos e executa as suítes de economia e mercado. Aqui, Luau voltou a receber acesso negado; a validação remota está separada da validação do motor Roblox.
+
+Checklist adicional no Studio: entrar com menu fechado; abrir/fechar via toque e B; girar a tela com o menu aberto; verificar os gráficos e a contagem do evento; comprar e vender os três lotes; aguardar mudança de cotação; conferir resultado e histórico; reconectar para verificar carteira persistida. Eventos de mercado podem mudar os valores de renda esperados no roteiro inicial abaixo.
+
 ## Instalador Windows
 
 `tests/test_installer.py` tem nove testes: sequência completa, opção sem Studio, interrupção quando Python falha, instalação parcial quando Studio falha, opção inválida, sintaxe do comando PowerShell e verificação de integridade/extração dos ZIPs. Os fluxos de instalação usam downloads e comandos simulados em diretórios temporários, incluindo caminho com espaços e `&`; nenhum binário das ferramentas é executado por essa suíte.

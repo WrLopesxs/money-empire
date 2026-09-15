@@ -4,6 +4,7 @@ local HttpService = game:GetService("HttpService")
 local Modules = game:GetService("ReplicatedStorage"):WaitForChild("Modules")
 local Config = require(Modules.GameConfig)
 local Economy = require(Modules.Economy)
+local Investments = require(Modules.InvestmentModel)
 local Policy = require(script.Parent.SessionPolicy)
 local temporary = RunService:IsStudio() and Config.StudioTemporaryData
 local store = if temporary then nil else DataStoreService:GetDataStore(if RunService:IsStudio() then Config.StudioStoreName else Config.StoreName)
@@ -36,6 +37,7 @@ function Manager.load(player)
                 if not Policy.canAcquire(old, session.Token, now) then return nil end
                 local profile = if old then old.Data else Economy.newProfile()
                 if not Economy.validate(profile) then return nil end
+                if not Investments.prepare(profile) then return nil end
                 return { Format = 1, Data = profile, Lock = { Token = session.Token, Expires = now + Config.SessionLeaseSeconds } }
             end)
         end)

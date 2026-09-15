@@ -2,6 +2,18 @@
 
 Primeira entrega: **MVP em Luau**, conforme a última instrução do briefing. Código completo em `src/` e arquivo de Studio em `build/MoneyEmpire.rbxlx`.
 
+## Atualização: menu compacto, mercado e investimentos
+
+O menu agora **começa fechado**. O HUD fica no canto superior esquerdo, com no máximo 384 px de largura; **Menu [B]** abre um painel lateral de até 360 px. O tamanho considera a área segura da tela, incluindo o espaço reservado pelo Roblox. Feche pelo **×** ou pela tecla **B**. O ranking reutiliza suas linhas, preservando a rolagem durante as atualizações.
+
+- **Mercado:** sete setores, cotações a cada 15 segundos e gráfico com 24 pontos. Eventos duram 3 minutos em ciclos de 8 minutos e alteram temporariamente a renda dos negócios e os preços.
+- **Investir:** selecione lotes de 1, 10 ou 100 cotas; compre, venda e consulte resultado aberto, resultado realizado e as últimas 20 operações. Os valores nos botões já incluem a **taxa de 2%** de cada operação.
+- Cotações e eventos são uma simulação calculada pelo horário UTC, igual entre servidores. Não usam preços financeiros reais, dinheiro real ou dados externos.
+- A carteira entra no patrimônio pelo preço atual. O resultado aberto inclui a taxa de compra, mas é mostrado antes da taxa de uma futura venda.
+- O servidor decide o preço e rejeita cotações antigas, saldo insuficiente, quantidades inválidas e vendas acima da posse. Cotas, custo e histórico são salvos; perfis anteriores recebem apenas os novos campos, sem apagar o progresso.
+
+Os testes de código também executam automaticamente no [GitHub Actions](https://github.com/WrLopesxs/money-empire/actions). A execução visual no Studio e o salvamento na nuvem ainda precisam de validação em um computador com acesso ao Roblox.
+
 ## Usar uma cópia do GitHub
 
 O arquivo `build/MoneyEmpire.rbxlx` está incluído no repositório e pode ser aberto diretamente no Roblox Studio. Os executáveis de ferramentas em `.tools/` não são enviados ao GitHub.
@@ -52,7 +64,7 @@ O mapa aparece ao iniciar a simulação. No modo de edição, o Workspace ainda 
 - Preço, renda, categoria, raridade, modelo, variante e valor investido centralizados em módulos.
 - Prédios que crescem, cofre com ouro e títulos por patrimônio.
 - HUD adaptável, compra, upgrade, coleção, ranking do servidor, movimento reduzido e notificações.
-- Patrimônio calculado como saldo + 70% do capital aplicado. O MVP não oferece venda de negócios.
+- Patrimônio calculado como saldo + 70% do capital dos negócios + valor atual dos investimentos. O MVP não oferece venda de negócios.
 - Coleção registra descobertas; entradas desconhecidas ficam ocultas.
 - Oito placeholders de som nomeados. `SoundId` vazio intencionalmente; não há áudio licenciado incorporado.
 - DataStore com `UpdateAsync`, bloqueio por sessão, autosave, tentativas com `pcall`, fechamento e recusa de dados inválidos.
@@ -107,6 +119,10 @@ scripts\run-python.cmd tests\test_installer.py
 | `src/shared/GameConfig.luau` | `ReplicatedStorage/Modules/GameConfig` | ModuleScript: configurações e catálogo |
 | `src/shared/Economy.luau` | `ReplicatedStorage/Modules/Economy` | ModuleScript: regras determinísticas |
 | `src/shared/NumberFormatter.luau` | `ReplicatedStorage/Modules/NumberFormatter` | ModuleScript: $1, K, M, B até Dc |
+| `src/shared/UILayout.luau` | `ReplicatedStorage/Modules/UILayout` | ModuleScript: dimensões do HUD e painel lateral |
+| `src/shared/MarketConfig.luau` | `ReplicatedStorage/Modules/MarketConfig` | ModuleScript: setores, eventos, lotes e taxa |
+| `src/shared/MarketModel.luau` | `ReplicatedStorage/Modules/MarketModel` | ModuleScript: cotações, gráficos e multiplicadores |
+| `src/shared/InvestmentModel.luau` | `ReplicatedStorage/Modules/InvestmentModel` | ModuleScript: carteira, operações e validação |
 | `src/server/Main.server.luau` | `ServerScriptService/MoneyEmpire/Main` | Script: entrada, remotes, renda e autosave |
 | `src/server/DataManager.luau` | `ServerScriptService/MoneyEmpire/DataManager` | ModuleScript: DataStore e sessões |
 | `src/server/SessionPolicy.luau` | `ServerScriptService/MoneyEmpire/SessionPolicy` | ModuleScript: posse e prazo da sessão |
@@ -120,6 +136,7 @@ scripts\run-python.cmd tests\test_installer.py
 
 - `Workspace/MoneyEmpireWorld`: chão, avenida, SpawnLocation, skyline e oito terrenos.
 - `ReplicatedStorage/Remotes/EmpireAction`: cliente pede `Work`, `Buy(id)`, `Upgrade(id)`, `Home`, `Sync` ou `ReducedMotion(boolean)`.
+- Para investimentos, o mesmo remoto aceita `InvestBuy` e `InvestSell` com `{ Sector, Units, Revision }`. A revisão identifica a cotação vista; o preço é consultado exclusivamente no servidor.
 - `ReplicatedStorage/Remotes/EmpireState`: servidor envia o estado ao jogador.
 - `ReplicatedStorage/Remotes/EmpireFeedback`: servidor envia resultados de ações.
 - `PlayerGui/MoneyEmpireUI`: interface criada pelo LocalScript.
@@ -127,7 +144,7 @@ scripts\run-python.cmd tests\test_installer.py
 
 ### Próximas etapas do briefing — ainda não implementadas
 
-Mercado global e eventos, investimentos e gráficos, prestígio, funcionários, missões, recompensas diárias, recompensas de coleção, veículos, mansões, leilões, trocas, ranking global e monetização. Essa separação segue a instrução de começar pelo MVP. Não há Gamepasses ou Developer Products ativos.
+Prestígio, funcionários, missões, recompensas diárias, recompensas de coleção, variantes sorteadas, veículos, mansões, leilões, trocas, ranking global e monetização. Eventos com NPCs, leilões e variantes Cosmic também continuam pendentes. Não há Gamepasses ou Developer Products ativos.
 
 ## Fontes das ferramentas e APIs
 

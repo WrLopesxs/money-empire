@@ -70,10 +70,10 @@ function World.release(player)
         plot.Model:SetAttribute("OwnerUserId", nil); plot.Label.Text = "TERRENO DISPONÍVEL"
     end
 end
-function World.refresh(player, profile)
+function World.refresh(player, profile, prices)
     local plot = World.find(player)
     if not plot then return end
-    plot.Label.Text = player.DisplayName .. "  •  " .. Economy.title(profile) .. "\n" .. Format.money(Economy.netWorth(profile))
+    plot.Label.Text = player.DisplayName .. "  •  " .. Economy.title(profile, prices) .. "\n" .. Format.money(Economy.netWorth(profile, prices))
     local signature = ""
     for _, id in ipairs(Config.BusinessOrder) do
         local owned = profile.Businesses[id]
@@ -109,7 +109,7 @@ function World.refresh(player, profile)
         part(plot.Content, "Gold", Vector3.new(2.5, 1, 2), vault + Vector3.new(-4 + ((i - 1) % 4) * 2.7, 2.5 + math.floor((i - 1) / 4), 0), Color3.fromRGB(255, 208, 88), Enum.Material.Metal)
     end
 end
-function World.updateTag(player, profile)
+function World.updateTag(player, profile, prices)
     local head = player.Character and player.Character:FindFirstChild("Head")
     if not head then return end
     local gui = head:FindFirstChild("EmpireTag")
@@ -120,6 +120,6 @@ function World.updateTag(player, profile)
         label.BackgroundTransparency = 1; label.TextColor3 = colors.white; label.TextStrokeTransparency = 0.4
         label.Font = Enum.Font.GothamBold; label.TextSize = 15; label.Parent = gui
     end
-    gui.Label.Text = player.DisplayName .. "\n" .. Format.money(Economy.netWorth(profile)) .. " • " .. Economy.title(profile)
+    gui.Label.Text = player.DisplayName .. "\n" .. Format.money(Economy.netWorth(profile, prices)) .. " • " .. Economy.title(profile, prices)
 end
 return World
