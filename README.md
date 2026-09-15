@@ -6,7 +6,24 @@ Primeira entrega: **MVP em Luau**, conforme a última instrução do briefing. C
 
 O arquivo `build/MoneyEmpire.rbxlx` está incluído no repositório e pode ser aberto diretamente no Roblox Studio. Os executáveis de ferramentas em `.tools/` não são enviados ao GitHub.
 
-Para desenvolver em outro PC Windows com Python instalado, execute `Instalar-ferramentas.cmd` na pasta do projeto. Ele baixa as ferramentas oficiais para a própria pasta, sem solicitar administrador. Depois use `Jogar.cmd` para gerar e abrir o jogo atualizado, ou `Testar.cmd` para executar os testes. A execução das ferramentas depende das permissões de segurança do computador.
+### Instalação do zero — sem administrador
+
+1. No GitHub, clique em **Code → Download ZIP** e extraia a pasta inteira para um local onde você possa gravar, como sua Área de Trabalho.
+2. Abra **[Instalar.bat](Instalar.bat)** com dois cliques. Não é necessário ter Python, Git ou ferramentas de desenvolvimento instalados.
+3. Aguarde as etapas: **Python portátil 3.14.7 → Rojo e Luau → geração do jogo → Roblox Studio**.
+4. Quando concluir, abra **Jogar.cmd**, entre na sua conta Roblox no Studio e pressione **F5**.
+
+Requisitos: **Windows 10/11 x64 (Intel/AMD)**, internet e permissão para executar os programas. Python, Rojo e Luau ficam em `.tools/`, dentro do projeto. Não há alteração de PATH, instalação global ou dependências `pip`. O Python portátil é dedicado às ferramentas deste projeto; não inclui `pip`. Os atalhos encontram essa cópia automaticamente, mesmo sem Python no sistema. O Studio usa seu instalador oficial na conta atual.
+
+Os downloads de Python, Rojo e Luau têm SHA-256 verificado antes da extração. A configuração do antivírus e as políticas do computador são preservadas; um bloqueio de execução ou de rede pode exigir ajuda do responsável pelo PC. Se o Studio não puder ser instalado, o instalador informa **instalação parcial** e mantém as etapas já concluídas para uma nova tentativa.
+
+O atalho antigo **Instalar-ferramentas.cmd** também inicia a instalação completa. Para preparar somente as ferramentas e gerar o jogo:
+
+```bat
+Instalar.bat --sem-studio
+```
+
+Use `--sem-pausa` em execução automatizada e `--ajuda` para ver as opções. Depois, `Testar.cmd` executa os testes de economia; eles são separados da instalação e dependem de permissão para executar Luau.
 
 ## Abrir e jogar
 
@@ -22,7 +39,7 @@ O mapa aparece ao iniciar a simulação. No modo de edição, o Workspace ainda 
 ## Situação da instalação neste PC
 
 - Rojo **7.7.0** e Luau **0.738** estão em `.tools/`, dentro desta pasta. Não exigem administrador.
-- Python já estava instalado e executa os atalhos. Nenhuma dependência pip é necessária.
+- Python já estava instalado no PC de desenvolvimento. Em um computador novo, `Instalar.bat` prepara sua própria cópia portátil. Nenhuma dependência pip é necessária.
 - O download do Studio **não foi concluído**: os dois endereços oficiais de instalação, o serviço de versões e `create.roblox.com` expiraram durante a conexão TLS. Diagnóstico em [docs/network-diagnostics.json](docs/network-diagnostics.json).
 - Quando o acesso estiver disponível, **Instalar-ferramentas.cmd** tenta novamente e verifica a assinatura digital Roblox antes de executar o instalador na conta atual.
 - O Trend Micro mostrou um alerta de programa novo para `luau-compile.exe`; uma repetição com `luau.exe` terminou com acesso negado. O ZIP baixado tem SHA-256 idêntico ao publicado na release oficial. Isso confirma a integridade do download, não uma garantia absoluta de segurança. O compilador não é mais chamado pelo atalho padrão, mas os testes de economia ainda precisam de `luau.exe` autorizado pelo ambiente. Não foram alteradas configurações do antivírus ou políticas do Windows.
@@ -64,7 +81,7 @@ Se os dados reais não puderem ser carregados ou forem inválidos, o servidor re
 Abra **Testar.cmd** ou execute:
 
 ```text
-python scripts/tools.py test
+scripts\run-python.cmd scripts\tools.py test
 ```
 
 Os testes executam o módulo real da economia no interpretador oficial Luau e verificam o build gerado pelo Rojo. Não simulam o motor Roblox nem uma conexão real com DataStore.
@@ -72,10 +89,16 @@ Os testes executam o módulo real da economia no interpretador oficial Luau e ve
 Verificação adicional de sintaxe, somente em ambiente onde o compilador tenha execução autorizada:
 
 ```text
-python scripts/tools.py test --compile
+scripts\run-python.cmd scripts\tools.py test --compile
 ```
 
 Veja [docs/TESTES.md](docs/TESTES.md) para cenários manuais e limitações. Os resultados automatizados ficam em `docs/test-results.json`.
+
+Para verificar o instalador, sem reinstalar programas nem executar Luau:
+
+```bat
+scripts\run-python.cmd tests\test_installer.py
+```
 
 ## Organização
 
@@ -112,3 +135,5 @@ Mercado global e eventos, investimentos e gráficos, prestígio, funcionários, 
 - [Documentação oficial de DataStores](https://create.roblox.com/docs/cloud-services/data-stores)
 - [Rojo 7.7.0](https://github.com/rojo-rbx/rojo/releases/tag/v7.7.0)
 - [Luau 0.738](https://github.com/luau-lang/luau/releases/tag/0.738)
+- [Python portátil: documentação oficial](https://docs.python.org/3/using/windows.html#the-embeddable-package)
+- [Python 3.14.7: arquivos oficiais](https://www.python.org/ftp/python/3.14.7/)

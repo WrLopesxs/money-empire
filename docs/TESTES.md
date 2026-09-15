@@ -1,5 +1,13 @@
 # Validação do MVP
 
+## Instalador Windows
+
+`tests/test_installer.py` tem nove testes: sequência completa, opção sem Studio, interrupção quando Python falha, instalação parcial quando Studio falha, opção inválida, sintaxe do comando PowerShell e verificação de integridade/extração dos ZIPs. Os fluxos de instalação usam downloads e comandos simulados em diretórios temporários, incluindo caminho com espaços e `&`; nenhum binário das ferramentas é executado por essa suíte.
+
+Validação feita nesta alteração: **9/9 testes passaram**. Também foram executados o download real do Python portátil 3.14.7 com conferência de SHA-256 e `Instalar.bat --sem-studio --sem-pausa`: Python portátil iniciou as ferramentas e o build foi concluído, com nove scripts completos no arquivo do jogo. Esse fluxo reutilizou as cópias de Rojo/Luau já presentes neste PC. A instalação real do Studio e uma instalação completa em uma máquina limpa permanecem sem validação.
+
+Comando: `scripts\run-python.cmd tests\test_installer.py`.
+
 ## Automatizada
 
 Dez testes em `tests/economy.spec.luau` verificam:

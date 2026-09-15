@@ -1,3 +1,3 @@
 @echo off
-python "%~dp0scripts\tools.py" setup --studio
-pause
+call "%~dp0Instalar.bat" %*
+exit /b %errorlevel%

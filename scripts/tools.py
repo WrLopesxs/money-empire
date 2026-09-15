@@ -21,6 +21,10 @@ PACKAGES = {
     'rojo': ('7.7.0', 'https://github.com/rojo-rbx/rojo/releases/download/v7.7.0/rojo-7.7.0-windows-x86_64.zip'),
     'luau': ('0.738', 'https://github.com/luau-lang/luau/releases/download/0.738/luau-windows.zip'),
 }
+PACKAGE_HASHES = {
+    'rojo': '2179c44862a10ecbd725bdfeb4abc64e16dc4aad9b6c8f3e1a7c46a87280b949',
+    'luau': '1d465aa225dff00ed589f32dd79f6e766b54c4de57e3b8652410ccbd4d491695',
+}
 STUDIO_URLS = [
     'https://setup.rbxcdn.com/RobloxStudioInstaller.exe',
     'https://setup-aws.rbxcdn.com/RobloxStudioInstaller.exe',
@@ -54,6 +58,8 @@ def setup(include_studio=False):
         archive = TOOLS / f'{name}.zip'
         if not executable.exists():
             download(url, archive)
+            if hashlib.sha256(archive.read_bytes()).hexdigest() != PACKAGE_HASHES[name]:
+                raise RuntimeError(f'Integridade invalida no pacote {name}. Extracao cancelada.')
             with zipfile.ZipFile(archive) as package:
                 target = (TOOLS / name).resolve()
                 for member in package.namelist():
@@ -94,7 +100,7 @@ def setup(include_studio=False):
             if result:
                 raise RuntimeError(f'Instalador terminou com codigo {result}.')
         except subprocess.TimeoutExpired:
-            print('Instalador ainda executando; confira se ha uma janela solicitando interacao.')
+            raise RuntimeError('Instalador ainda executando. Aguarde sua conclusao e execute Instalar.bat novamente.')
         if studio_exe():
             print(f'Studio instalado: {studio_exe()}')
         else:
