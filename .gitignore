@@ -1,0 +1,7 @@
+.tools/
+build/*
+!build/MoneyEmpire.rbxlx
+__pycache__/
+*.pyc
+*.rbxl.lock
+*.rbxlx.lock

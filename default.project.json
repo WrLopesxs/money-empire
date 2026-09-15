@@ -1,0 +1,12 @@
+{
+  "name": "MoneyEmpire",
+  "tree": {
+    "$className": "DataModel",
+    "ReplicatedStorage": { "Modules": { "$path": "src/shared" } },
+    "ServerScriptService": { "MoneyEmpire": { "$path": "src/server" } },
+    "StarterPlayer": { "StarterPlayerScripts": { "MoneyEmpireClient": { "$path": "src/client/Main.client.luau" } } },
+    "Workspace": { "$properties": { "Gravity": 196.2, "StreamingEnabled": true } },
+    "Lighting": { "$properties": { "ClockTime": 15, "Brightness": 2, "Ambient": [0.45, 0.48, 0.6], "OutdoorAmbient": [0.55, 0.57, 0.65] } },
+    "SoundService": { "MoneyEmpireSounds": { "$className": "Folder" } }
+  }
+}

@@ -1,0 +1,876 @@
+<roblox version="4">
+  <Item class="Lighting" referent="0">
+    <Properties>
+      <string name="Name">Lighting</string>
+      <Color3 name="Ambient">
+        <R>0.45</R>
+        <G>0.48</G>
+        <B>0.6</B>
+      </Color3>
+      <float name="Brightness">2</float>
+      <float name="ClockTime">15</float>
+      <Color3 name="OutdoorAmbient">
+        <R>0.55</R>
+        <G>0.57</G>
+        <B>0.65</B>
+      </Color3>
+    </Properties>
+  </Item>
+  <Item class="ReplicatedStorage" referent="1">
+    <Properties>
+      <string name="Name">ReplicatedStorage</string>
+    </Properties>
+    <Item class="Folder" referent="2">
+      <Properties>
+        <string name="Name">Modules</string>
+      </Properties>
+      <Item class="ModuleScript" referent="3">
+        <Properties>
+          <string name="Name">Economy</string>
+          <string name="Source"><![CDATA[-- Pure Luau domain logic: the same implementation runs in Roblox and in CLI tests.
+local Config = require(if script then script.Parent.GameConfig else "./GameConfig")
+local Economy = {}
+local function finite(n, minimum, maximum)
+    return type(n) == "number" and n == n and n >= minimum and n <= maximum
+end
+function Economy.newProfile()
+    return { Version = 1, Cash = Config.StartingCash, Businesses = {}, Collection = {}, LifetimeEarned = 0, WorkCount = 0, Settings = { ReducedMotion = false }, Revision = 0 }
+end
+function Economy.validate(p)
+    if type(p) ~= "table" or p.Version ~= 1 then return false end
+    if not finite(p.Cash, 0, Config.MaxCash) or not finite(p.LifetimeEarned, 0, Config.MaxCash) then return false end
+    if not finite(p.WorkCount, 0, 1e12) or p.WorkCount % 1 ~= 0 then return false end
+    if not finite(p.Revision, 0, 1e15) or p.Revision % 1 ~= 0 then return false end
+    if type(p.Businesses) ~= "table" or type(p.Collection) ~= "table" or type(p.Settings) ~= "table" then return false end
+    if type(p.Settings.ReducedMotion) ~= "boolean" then return false end
+    for id, owned in pairs(p.Businesses) do
+        local c = Config.Businesses[id]
+        if not c or type(owned) ~= "table" then return false end
+        if not finite(owned.Level, 1, c.MaxLevel) or owned.Level % 1 ~= 0 then return false end
+        if not Config.Variants[owned.Variant] or not finite(owned.Invested, c.Price, Config.MaxCash) then return false end
+    end
+    for id, discovered in pairs(p.Collection) do
+        if not Config.Businesses[id] or discovered ~= true then return false end
+    end
+    return true
+end
+function Economy.incomeFor(id, owned)
+    return Config.Businesses[id].Income * Config.UpgradeIncomeGrowth ^ (owned.Level - 1) * Config.Variants[owned.Variant]
+end
+function Economy.income(p)
+    local total = 0
+    for id, owned in pairs(p.Businesses) do total += Economy.incomeFor(id, owned) end
+    return total
+end
+function Economy.netWorth(p)
+    local total = p.Cash
+    for _, owned in pairs(p.Businesses) do total += math.floor(owned.Invested * Config.ResaleRatio) end
+    return total
+end
+function Economy.title(p)
+    local result, worth = Config.Titles[1].Name, Economy.netWorth(p)
+    for _, entry in ipairs(Config.Titles) do if worth >= entry.Value then result = entry.Name end end
+    return result
+end
+function Economy.unlocked(p, id)
+    for i, entry in ipairs(Config.BusinessOrder) do
+        if entry == id then return i == 1 or p.Collection[Config.BusinessOrder[i - 1]] == true end
+    end
+    return false
+end
+function Economy.upgradeCost(id, owned)
+    return math.floor(Config.Businesses[id].Price * 0.65 * Config.UpgradeCostGrowth ^ (owned.Level - 1))
+end
+function Economy.credit(p, amount)
+    if not finite(amount, 0, Config.MaxCash) then return false end
+    p.Cash = math.min(Config.MaxCash, p.Cash + amount)
+    p.LifetimeEarned = math.min(Config.MaxCash, p.LifetimeEarned + amount)
+    return true
+end
+function Economy.work(p)
+    Economy.credit(p, Config.WorkReward)
+    p.WorkCount += 1
+    return true, "+$" .. Config.WorkReward
+end
+function Economy.buy(p, id)
+    local c = Config.Businesses[id]
+    if not c or not Economy.unlocked(p, id) then return false, "Compre o negócio anterior para desbloquear." end
+    if p.Businesses[id] then return false, "Você já tem este negócio." end
+    if p.Cash < c.Price then return false, "Dinheiro insuficiente." end
+    p.Cash -= c.Price
+    p.Businesses[id] = { Level = 1, Variant = "Normal", Invested = c.Price }
+    p.Collection[id] = true
+    return true, c.Name .. " inaugurado!"
+end
+function Economy.upgrade(p, id)
+    local owned, c = p.Businesses[id], Config.Businesses[id]
+    if not owned or not c then return false, "Negócio não encontrado." end
+    if owned.Level >= c.MaxLevel then return false, "Nível máximo atingido." end
+    local cost = Economy.upgradeCost(id, owned)
+    if p.Cash < cost then return false, "Dinheiro insuficiente." end
+    p.Cash -= cost
+    owned.Invested += cost
+    owned.Level += 1
+    return true, "Upgrade concluído!"
+end
+function Economy.tick(p, elapsed)
+    if not finite(elapsed, 0, 10) then return false end
+    return Economy.credit(p, Economy.income(p) * elapsed)
+end
+function Economy.count(p)
+    local n = 0
+    for _ in pairs(p.Businesses) do n += 1 end
+    return n
+end
+return Economy
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="4">
+        <Properties>
+          <string name="Name">GameConfig</string>
+          <string name="Source"><![CDATA[-- All economy tuning lives here. No paid purchases in the MVP.
+local Config = {
+    StartingCash = 1,
+    WorkReward = 2,
+    WorkCooldown = 0.65,
+    TickSeconds = 1,
+    SnapshotSeconds = 1,
+    AutosaveSeconds = 60,
+    SessionLeaseSeconds = 180,
+    SaveRetries = 3,
+    MaxCash = 1e33,
+    ResaleRatio = 0.7,
+    UpgradeCostGrowth = 1.65,
+    UpgradeIncomeGrowth = 1.4,
+    RemoteBurst = 12,
+    RemotePerSecond = 6,
+    PlotCount = 8,
+    PlotSpacing = 150,
+    -- Local Studio play is deliberately ephemeral. Set false only in a published TEST place.
+    StudioTemporaryData = true,
+    StoreName = "MoneyEmpire_v1",
+    StudioStoreName = "MoneyEmpire_TEST_v1",
+    Rarities = { "Common", "Uncommon", "Rare", "Epic", "Legendary", "Mythic", "Secret" },
+    Variants = { Normal = 1, Golden = 2, Diamond = 3, Rainbow = 5, Viral = 7, Overclocked = 10, Cosmic = 25 },
+    BusinessOrder = { "Water", "FoodCart", "Lemonade", "Coffee", "Market", "Restaurant", "Factory", "Tech", "Bank", "Luxury", "Tower", "Conglomerate", "PrivateCity", "Global", "Space" },
+    Businesses = {
+        Water = { Name = "Água gelada", Price = 10, Income = 1, Rarity = "Common", Category = "Food", MaxLevel = 10, Color = {70, 198, 232}, Model = "Stand" },
+        FoodCart = { Name = "Carrinho de comida", Price = 80, Income = 5, Rarity = "Common", Category = "Food", MaxLevel = 10, Color = {248, 162, 67}, Model = "Stand" },
+        Lemonade = { Name = "Estação limonada", Price = 450, Income = 22, Rarity = "Uncommon", Category = "Food", MaxLevel = 10, Color = {202, 226, 86}, Model = "Stand" },
+        Coffee = { Name = "Café Aurora", Price = 2500, Income = 95, Rarity = "Uncommon", Category = "Food", MaxLevel = 10, Color = {216, 155, 113}, Model = "Shop" },
+        Market = { Name = "Mercado Central", Price = 12000, Income = 380, Rarity = "Rare", Category = "Food", MaxLevel = 10, Color = {76, 209, 162}, Model = "Shop" },
+        Restaurant = { Name = "Restaurante Âmbar", Price = 65000, Income = 1700, Rarity = "Rare", Category = "Food", MaxLevel = 10, Color = {244, 115, 93}, Model = "Shop" },
+        Factory = { Name = "Fábrica Horizonte", Price = 350000, Income = 7200, Rarity = "Epic", Category = "Energy", MaxLevel = 10, Color = {128, 144, 189}, Model = "Tower" },
+        Tech = { Name = "Nexo Tecnologia", Price = 2000000, Income = 33000, Rarity = "Epic", Category = "Tech", MaxLevel = 10, Color = {81, 158, 255}, Model = "Tower" },
+        Bank = { Name = "Banco Meridian", Price = 12000000, Income = 155000, Rarity = "Legendary", Category = "Finance", MaxLevel = 10, Color = {248, 201, 89}, Model = "Tower" },
+        Luxury = { Name = "Maison Celeste", Price = 70000000, Income = 700000, Rarity = "Legendary", Category = "Luxury", MaxLevel = 10, Color = {218, 151, 223}, Model = "Tower" },
+        Tower = { Name = "Torre Infinita", Price = 400000000, Income = 3200000, Rarity = "Legendary", Category = "Real Estate", MaxLevel = 10, Color = {113, 204, 221}, Model = "Tower" },
+        Conglomerate = { Name = "Grupo Atlas", Price = 2500000000, Income = 15000000, Rarity = "Mythic", Category = "Finance", MaxLevel = 10, Color = {248, 114, 171}, Model = "Tower" },
+        PrivateCity = { Name = "Cidade Elysium", Price = 15000000000, Income = 70000000, Rarity = "Mythic", Category = "Real Estate", MaxLevel = 10, Color = {147, 125, 239}, Model = "Tower" },
+        Global = { Name = "Império Global", Price = 100000000000, Income = 340000000, Rarity = "Mythic", Category = "Transport", MaxLevel = 10, Color = {71, 227, 203}, Model = "Tower" },
+        Space = { Name = "Órbita Espacial", Price = 1000000000000, Income = 1800000000, Rarity = "Secret", Category = "Tech", MaxLevel = 10, Color = {192, 171, 255}, Model = "Tower" },
+    },
+    Titles = {
+        { Value = 0, Name = "Primeiro passo" }, { Value = 1000, Name = "Empreendedor" },
+        { Value = 1000000, Name = "Millionaire" }, { Value = 10000000, Name = "Multi-Millionaire" },
+        { Value = 1000000000, Name = "Billionaire" }, { Value = 100000000000, Name = "Empire Owner" },
+        { Value = 1000000000000, Name = "World Elite" },
+    },
+}
+return Config
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="5">
+        <Properties>
+          <string name="Name">NumberFormatter</string>
+          <string name="Source"><![CDATA[local suffixes = { "", "K", "M", "B", "T", "Qa", "Qi", "Sx", "Sp", "Oc", "No", "Dc" }
+local Formatter = {}
+function Formatter.compact(value)
+    if type(value) ~= "number" or value ~= value or math.abs(value) == math.huge then return "0" end
+    local sign = if value < 0 then "-" else ""
+    local n, tier = math.abs(value), 1
+    while n >= 1000 and tier < #suffixes do n /= 1000; tier += 1 end
+    local decimals = if tier == 1 or n >= 100 then 0 elseif n >= 10 then 1 else 2
+    local rounded = math.floor(n * 10 ^ decimals + 0.5) / 10 ^ decimals
+    if rounded >= 1000 and tier < #suffixes then rounded /= 1000; tier += 1; decimals = 2 end
+    local text = string.format("%." .. decimals .. "f", rounded)
+    if string.find(text, ".", 1, true) then text = string.gsub(string.gsub(text, "0+$", ""), "%.$", "") end
+    return sign .. text .. suffixes[tier]
+end
+function Formatter.money(value) return "$" .. Formatter.compact(value) end
+return Formatter
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="ServerScriptService" referent="6">
+    <Properties>
+      <string name="Name">ServerScriptService</string>
+    </Properties>
+    <Item class="Folder" referent="7">
+      <Properties>
+        <string name="Name">MoneyEmpire</string>
+      </Properties>
+      <Item class="ModuleScript" referent="8">
+        <Properties>
+          <string name="Name">DataManager</string>
+          <string name="Source"><![CDATA[local DataStoreService = game:GetService("DataStoreService")
+local RunService = game:GetService("RunService")
+local HttpService = game:GetService("HttpService")
+local Modules = game:GetService("ReplicatedStorage"):WaitForChild("Modules")
+local Config = require(Modules.GameConfig)
+local Economy = require(Modules.Economy)
+local Policy = require(script.Parent.SessionPolicy)
+local temporary = RunService:IsStudio() and Config.StudioTemporaryData
+local store = if temporary then nil else DataStoreService:GetDataStore(if RunService:IsStudio() then Config.StudioStoreName else Config.StoreName)
+local Manager = { Sessions = {}, Temporary = temporary }
+local function copy(value)
+    if type(value) ~= "table" then return value end
+    local result = {}
+    for key, child in pairs(value) do result[key] = copy(child) end
+    return result
+end
+local function retry(callback)
+    local ok, result
+    for attempt = 1, Config.SaveRetries do
+        ok, result = pcall(callback)
+        if ok then return true, result end
+        warn("[MoneyEmpire] DataStore tentativa " .. attempt .. ": " .. tostring(result))
+        if attempt < Config.SaveRetries then task.wait(attempt) end
+    end
+    return false, result
+end
+function Manager.load(player)
+    local session = { Token = HttpService:GenerateGUID(false), Profile = nil, Saving = false, Closing = false, Healthy = true, Status = "Carregando", LastSave = 0 }
+    if temporary then
+        session.Profile = Economy.newProfile()
+        session.Status = "TESTE LOCAL • dados temporários"
+    else
+        local ok, record = retry(function()
+            return store:UpdateAsync("Player_" .. player.UserId, function(old)
+                local now = os.time()
+                if not Policy.canAcquire(old, session.Token, now) then return nil end
+                local profile = if old then old.Data else Economy.newProfile()
+                if not Economy.validate(profile) then return nil end
+                return { Format = 1, Data = profile, Lock = { Token = session.Token, Expires = now + Config.SessionLeaseSeconds } }
+            end)
+        end)
+        if not ok or not Policy.owns(record, session.Token, os.time()) then
+            return nil, "Não foi possível carregar seus dados com segurança. Aguarde um pouco e entre novamente."
+        end
+        session.Profile = record.Data
+        session.LeaseExpires = record.Lock.Expires
+        session.Status = "Salvamento conectado"
+    end
+    Manager.Sessions[player] = session
+    return session
+end
+function Manager.save(player, release)
+    local session = Manager.Sessions[player]
+    if not session then return false end
+    if release then session.Closing = true end
+    -- Serialize saves so an older snapshot cannot overwrite a newer one.
+    while session.Saving do task.wait(0.05) end
+    if Manager.Sessions[player] ~= session then return false end
+    if temporary then
+        if release then Manager.Sessions[player] = nil end
+        return true
+    end
+    if not session.Healthy or not Economy.validate(session.Profile) then return false end
+    session.Saving = true
+    local snapshot = copy(session.Profile)
+    snapshot.Revision += 1
+    local ok, record = retry(function()
+        return store:UpdateAsync("Player_" .. player.UserId, function(old)
+            if not Policy.owns(old, session.Token, os.time()) then return nil end
+            return { Format = 1, Data = snapshot, Lock = if release then nil else { Token = session.Token, Expires = os.time() + Config.SessionLeaseSeconds } }
+        end)
+    end)
+    local saved = ok and type(record) == "table" and record.Data.Revision == snapshot.Revision
+        and (if release then record.Lock == nil else Policy.owns(record, session.Token, os.time()))
+    if saved then
+        session.Profile.Revision = snapshot.Revision
+        session.LastSave = os.time()
+        session.LeaseExpires = if release then 0 else record.Lock.Expires
+        session.Status = "Salvo às " .. os.date("!%H:%M:%S", session.LastSave) .. " UTC"
+    elseif ok then
+        session.Healthy = false
+        session.Status = "Sessão expirada"
+    else
+        session.Status = "Falha ao salvar • nova tentativa automática"
+    end
+    session.Saving = false
+    if release then Manager.Sessions[player] = nil end
+    if not session.Healthy and player.Parent then player:Kick("Sua sessão de dados expirou. Entre novamente para proteger seu progresso.") end
+    return saved
+end
+function Manager.usable(session)
+    if session.Closing or not session.Healthy then return false end
+    if not temporary and os.time() >= session.LeaseExpires then
+        session.Healthy = false
+        return false
+    end
+    return true
+end
+return Manager
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="Script" referent="9">
+        <Properties>
+          <string name="Name">Main</string>
+          <token name="RunContext">0</token>
+          <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local Config = require(ReplicatedStorage.Modules.GameConfig)
+local Economy = require(ReplicatedStorage.Modules.Economy)
+local Data = require(script.Parent.DataManager)
+local World = require(script.Parent.WorldManager)
+local Limiter = require(script.Parent.RateLimiter)
+local remotes = Instance.new("Folder"); remotes.Name = "Remotes"; remotes.Parent = ReplicatedStorage
+local action = Instance.new("RemoteEvent"); action.Name = "EmpireAction"; action.Parent = remotes
+local state = Instance.new("RemoteEvent"); state.Name = "EmpireState"; state.Parent = remotes
+local feedback = Instance.new("RemoteEvent"); feedback.Name = "EmpireFeedback"; feedback.Parent = remotes
+local limits, lastWork, lastHome = {}, {}, {}
+local closing, loading = false, 0
+World.init()
+for _, name in ipairs({ "Purchase", "Cash", "LevelUp", "Event", "Rare", "Prestige", "Error", "Success" }) do
+    local sound = Instance.new("Sound"); sound.Name = name; sound.Volume = 0.35
+    sound.Parent = game:GetService("SoundService"):WaitForChild("MoneyEmpireSounds")
+end
+local function ranking()
+    local rows = {}
+    for player, session in pairs(Data.Sessions) do
+        if not session.Closing then
+            table.insert(rows, { Name = player.DisplayName, UserId = player.UserId, NetWorth = Economy.netWorth(session.Profile), Cash = session.Profile.Cash, Businesses = Economy.count(session.Profile) })
+        end
+    end
+    table.sort(rows, function(a, b) return a.NetWorth > b.NetWorth end)
+    while #rows > 10 do table.remove(rows) end
+    return rows
+end
+local function send(player, ranks)
+    local session = Data.Sessions[player]
+    if not session or session.Closing then return end
+    local p = session.Profile
+    state:FireClient(player, { Cash = p.Cash, NetWorth = Economy.netWorth(p), Income = Economy.income(p), Businesses = p.Businesses, Collection = p.Collection, Settings = p.Settings, Title = Economy.title(p), SaveStatus = session.Status, Temporary = Data.Temporary, Ranking = ranks or ranking() })
+end
+local function joined(player)
+    if closing then player:Kick("Servidor encerrando. Entre novamente."); return end
+    loading += 1
+    local session, errorMessage = Data.load(player)
+    loading -= 1
+    if not session then if player.Parent then player:Kick(errorMessage) end; return end
+    if closing or not player.Parent then Data.save(player, true); return end
+    local plot = World.assign(player)
+    if not plot then Data.save(player, true); player:Kick("Os 8 terrenos estão ocupados. Tente outro servidor."); return end
+    local stats = Instance.new("Folder"); stats.Name = "leaderstats"; stats.Parent = player
+    for _, name in ipairs({ "Net Worth", "Cash", "Businesses" }) do
+        local value = Instance.new("NumberValue"); value.Name = name; value.Parent = stats
+    end
+    player.CharacterAdded:Connect(function(character)
+        character:WaitForChild("HumanoidRootPart", 10)
+        if player.Parent then World.teleport(player); World.updateTag(player, session.Profile) end
+    end)
+    if player.Character then World.teleport(player) end
+    World.refresh(player, session.Profile)
+    send(player)
+end
+Players.PlayerAdded:Connect(joined)
+for _, player in ipairs(Players:GetPlayers()) do task.spawn(joined, player) end
+Players.PlayerRemoving:Connect(function(player)
+    World.release(player); limits[player] = nil; lastWork[player] = nil; lastHome[player] = nil
+    Data.save(player, true)
+end)
+action.OnServerEvent:Connect(function(player, kind, payload)
+    limits[player] = limits[player] or {}
+    local now = os.clock()
+    if not Limiter.allow(limits[player], now, Config.RemoteBurst, Config.RemotePerSecond) then return end
+    if type(kind) ~= "string" or #kind > 24 then return end
+    local session = Data.Sessions[player]
+    if not session or not Data.usable(session) then return end
+    local p, ok, message = session.Profile, false, nil
+    if kind == "Sync" then send(player); return
+    elseif kind == "Work" then
+        if now - (lastWork[player] or -math.huge) < Config.WorkCooldown then return end
+        lastWork[player] = now; ok, message = Economy.work(p)
+    elseif kind == "Buy" or kind == "Upgrade" then
+        if type(payload) ~= "string" or #payload > 32 or not Config.Businesses[payload] then return end
+        if kind == "Buy" then ok, message = Economy.buy(p, payload) else ok, message = Economy.upgrade(p, payload) end
+    elseif kind == "Home" then
+        if now - (lastHome[player] or -math.huge) < 3 then return end
+        lastHome[player] = now; World.teleport(player); return
+    elseif kind == "ReducedMotion" then
+        if type(payload) ~= "boolean" then return end
+        p.Settings.ReducedMotion = payload; ok = true; message = "Preferência atualizada."
+    else return end
+    if message then feedback:FireClient(player, ok, message, kind) end
+    if ok then
+        if kind == "Buy" or kind == "Upgrade" then World.refresh(player, p) end
+        if kind == "Buy" and Config.Businesses[payload].Rarity == "Secret" then
+            feedback:FireAllClients(true, player.DisplayName .. " inaugurou Órbita Espacial • SECRET!", "Secret")
+        end
+        send(player)
+    end
+end)
+local elapsed, snapshotElapsed = 0, 0
+RunService.Heartbeat:Connect(function(dt)
+    if closing then return end
+    elapsed += dt; snapshotElapsed += dt
+    if elapsed < Config.TickSeconds then return end
+    local step = math.min(elapsed, 10); elapsed = 0
+    local shouldSend = snapshotElapsed >= Config.SnapshotSeconds
+    if shouldSend then snapshotElapsed = 0 end
+    for player, session in pairs(Data.Sessions) do
+        if Data.usable(session) then
+            Economy.tick(session.Profile, step)
+            local stats = player:FindFirstChild("leaderstats")
+            if stats then
+                stats["Net Worth"].Value = math.floor(Economy.netWorth(session.Profile))
+                stats.Cash.Value = math.floor(session.Profile.Cash)
+                stats.Businesses.Value = Economy.count(session.Profile)
+            end
+            World.refresh(player, session.Profile); World.updateTag(player, session.Profile)
+        elseif not session.Healthy and player.Parent then
+            player:Kick("Conexão de salvamento expirada. Entre novamente para proteger seus dados.")
+        end
+    end
+    if shouldSend then
+        local ranks = ranking()
+        for player in pairs(Data.Sessions) do send(player, ranks) end
+    end
+end)
+task.spawn(function()
+    while not closing do
+        task.wait(Config.AutosaveSeconds)
+        for player, session in pairs(Data.Sessions) do
+            if not closing and not session.Closing and not session.Saving then task.spawn(Data.save, player, false) end
+        end
+    end
+end)
+game:BindToClose(function()
+    closing = true
+    local deadline = os.clock() + 25
+    while loading > 0 and os.clock() < deadline do task.wait(0.1) end
+    local pending = 0
+    for player in pairs(Data.Sessions) do
+        pending += 1
+        task.spawn(function() Data.save(player, true); pending -= 1 end)
+    end
+    while pending > 0 and os.clock() < deadline do task.wait(0.1) end
+end)
+print("[MoneyEmpire] MVP iniciado. Dados temporários:", Data.Temporary)
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="10">
+        <Properties>
+          <string name="Name">RateLimiter</string>
+          <string name="Source"><![CDATA[local Limiter = {}
+function Limiter.allow(state, now, capacity, refill)
+    state.Tokens = math.min(capacity, (state.Tokens or capacity) + math.max(0, now - (state.Last or now)) * refill)
+    state.Last = now
+    if state.Tokens < 1 then return false end
+    state.Tokens -= 1
+    return true
+end
+return Limiter
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="11">
+        <Properties>
+          <string name="Name">SessionPolicy</string>
+          <string name="Source"><![CDATA[-- Pure lease policy, shared by persistence and its tests.
+local Policy = {}
+function Policy.canAcquire(record, token, now)
+    if record == nil then return true end
+    if type(record) ~= "table" or record.Format ~= 1 or type(record.Data) ~= "table" then return false end
+    local lock = record.Lock
+    if lock == nil then return true end
+    if type(lock) ~= "table" or type(lock.Token) ~= "string" or type(lock.Expires) ~= "number" or lock.Expires ~= lock.Expires then return false end
+    return lock.Token == token or lock.Expires <= now
+end
+function Policy.owns(record, token, now)
+    return type(record) == "table" and record.Format == 1 and type(record.Lock) == "table"
+        and record.Lock.Token == token and type(record.Lock.Expires) == "number" and record.Lock.Expires > now
+end
+return Policy
+]]></string>
+        </Properties>
+      </Item>
+      <Item class="ModuleScript" referent="12">
+        <Properties>
+          <string name="Name">WorldManager</string>
+          <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local Modules = game:GetService("ReplicatedStorage"):WaitForChild("Modules")
+local Config = require(Modules.GameConfig)
+local Economy = require(Modules.Economy)
+local Format = require(Modules.NumberFormatter)
+local World = { Plots = {} }
+local colors = { ground = Color3.fromRGB(37, 56, 64), road = Color3.fromRGB(28, 34, 45), mint = Color3.fromRGB(94, 240, 186), white = Color3.fromRGB(235, 241, 239) }
+local function part(parent, name, size, position, color, material)
+    local p = Instance.new("Part")
+    p.Name = name; p.Size = size; p.Position = position; p.Color = color
+    p.Anchored = true; p.Material = material or Enum.Material.SmoothPlastic
+    p.TopSurface = Enum.SurfaceType.Smooth; p.BottomSurface = Enum.SurfaceType.Smooth
+    p.Parent = parent
+    return p
+end
+local function sign(parent, text, position, width)
+    local anchor = part(parent, "Sign", Vector3.new(width or 28, 6, 0.5), position, colors.road)
+    local gui = Instance.new("SurfaceGui"); gui.Face = Enum.NormalId.Front; gui.CanvasSize = Vector2.new(800, 160); gui.Parent = anchor
+    local label = Instance.new("TextLabel"); label.Size = UDim2.fromScale(1, 1); label.BackgroundTransparency = 1
+    label.Font = Enum.Font.GothamBold; label.TextColor3 = colors.white; label.TextScaled = true; label.Text = text; label.Parent = gui
+    return label
+end
+function World.init()
+    local root = Instance.new("Folder"); root.Name = "MoneyEmpireWorld"; root.Parent = workspace
+    World.Root = root
+    part(root, "Ground", Vector3.new(740, 2, 430), Vector3.new(0, -2, 0), colors.ground, Enum.Material.Grass)
+    part(root, "EmpireAvenue", Vector3.new(720, 0.3, 42), Vector3.new(0, -0.8, 0), colors.road)
+    for x = -330, 330, 30 do part(root, "RoadMark", Vector3.new(12, 0.05, 0.7), Vector3.new(x, -0.6, 0), colors.white) end
+    local spawn = Instance.new("SpawnLocation"); spawn.Name = "Arrival"; spawn.Size = Vector3.new(10, 1, 10)
+    spawn.Position = Vector3.new(0, 1, 0); spawn.Anchored = true; spawn.Neutral = true; spawn.Duration = 0; spawn.Transparency = 1; spawn.Parent = root
+    sign(root, "MONEY EMPIRE\nFROM $1 TO BILLIONAIRE", Vector3.new(0, 22, 200), 80)
+    for i = 1, Config.PlotCount do
+        local side = if i <= 4 then -1 else 1
+        local x = ((i - 1) % 4 - 1.5) * Config.PlotSpacing
+        local origin = Vector3.new(x, 0, side * 100)
+        local model = Instance.new("Model"); model.Name = "Plot_" .. i; model.Parent = root
+        part(model, "Foundation", Vector3.new(132, 1, 122), origin, Color3.fromRGB(62, 79, 89), Enum.Material.Concrete)
+        part(model, "EntryGlow", Vector3.new(100, 0.2, 1), origin + Vector3.new(0, 0.7, -57), colors.mint, Enum.Material.Neon)
+        local label = sign(model, "TERRENO DISPONÍVEL", origin + Vector3.new(0, 7, -58), 65)
+        local content = Instance.new("Folder"); content.Name = "Businesses"; content.Parent = model
+        World.Plots[i] = { Model = model, Content = content, Origin = origin, Label = label, Owner = nil, Signature = "" }
+    end
+    -- Low cost skyline: decorative anchored geometry, no free physics objects.
+    for i = 1, 18 do
+        local height = 18 + (i * 17) % 70
+        part(root, "Skyline", Vector3.new(22, height, 18), Vector3.new(-350 + i * 37, height / 2, 190), Color3.fromRGB(48 + i % 3 * 8, 65, 87))
+    end
+end
+function World.assign(player)
+    for _, plot in ipairs(World.Plots) do
+        if not plot.Owner then
+            plot.Owner = player; plot.Model:SetAttribute("OwnerUserId", player.UserId)
+            return plot
+        end
+    end
+    return nil
+end
+function World.find(player)
+    for _, plot in ipairs(World.Plots) do if plot.Owner == player then return plot end end
+    return nil
+end
+function World.teleport(player)
+    local plot = World.find(player)
+    if plot and player.Character then player.Character:PivotTo(CFrame.new(plot.Origin + Vector3.new(0, 5, -44))) end
+end
+function World.release(player)
+    local plot = World.find(player)
+    if plot then
+        plot.Owner = nil; plot.Signature = ""; plot.Content:ClearAllChildren()
+        plot.Model:SetAttribute("OwnerUserId", nil); plot.Label.Text = "TERRENO DISPONÍVEL"
+    end
+end
+function World.refresh(player, profile)
+    local plot = World.find(player)
+    if not plot then return end
+    plot.Label.Text = player.DisplayName .. "  •  " .. Economy.title(profile) .. "\n" .. Format.money(Economy.netWorth(profile))
+    local signature = ""
+    for _, id in ipairs(Config.BusinessOrder) do
+        local owned = profile.Businesses[id]
+        if owned then signature ..= id .. owned.Level .. ";" end
+    end
+    local vaultTier = math.clamp(math.floor(math.log10(math.max(1, profile.Cash))), 0, 12)
+    signature ..= vaultTier
+    if plot.Signature == signature then return end
+    plot.Signature = signature; plot.Content:ClearAllChildren()
+    local count = 0
+    for index, id in ipairs(Config.BusinessOrder) do
+        local owned = profile.Businesses[id]
+        if owned then
+            count += 1
+            local c = Config.Businesses[id]
+            local color = Color3.fromRGB(unpack(c.Color))
+            local position = plot.Origin + Vector3.new(-48 + ((index - 1) % 5) * 24, 0.7, -18 + math.floor((index - 1) / 5) * 30)
+            local model = Instance.new("Model"); model.Name = id; model.Parent = plot.Content
+            local height = if c.Model == "Stand" then 5 elseif c.Model == "Shop" then 10 else 16 + index * 2 + owned.Level
+            part(model, "Building", Vector3.new(18, height, 20), position + Vector3.new(0, height / 2, 0), color)
+            part(model, "Roof", Vector3.new(20, 0.8, 22), position + Vector3.new(0, height + 0.4, 0), colors.road)
+            local rows = math.min(6, math.floor(height / 5))
+            for row = 1, rows do
+                part(model, "Windows", Vector3.new(14, 2, 0.15), position + Vector3.new(0, row * 4 - 1, -10.1), Color3.fromRGB(161, 225, 245), Enum.Material.Glass)
+            end
+            sign(model, c.Name .. "\nNv. " .. owned.Level, position + Vector3.new(0, height + 3, -10), 20)
+            if c.Rarity == "Secret" then part(model, "CosmicCrown", Vector3.new(5, 8, 5), position + Vector3.new(0, height + 5, 0), color, Enum.Material.Neon) end
+        end
+    end
+    local vault = plot.Origin + Vector3.new(46, 2.5, -44)
+    part(plot.Content, "Vault", Vector3.new(14, 4, 9), vault, colors.road, Enum.Material.Metal)
+    for i = 1, vaultTier do
+        part(plot.Content, "Gold", Vector3.new(2.5, 1, 2), vault + Vector3.new(-4 + ((i - 1) % 4) * 2.7, 2.5 + math.floor((i - 1) / 4), 0), Color3.fromRGB(255, 208, 88), Enum.Material.Metal)
+    end
+end
+function World.updateTag(player, profile)
+    local head = player.Character and player.Character:FindFirstChild("Head")
+    if not head then return end
+    local gui = head:FindFirstChild("EmpireTag")
+    if not gui then
+        gui = Instance.new("BillboardGui"); gui.Name = "EmpireTag"; gui.Size = UDim2.fromOffset(230, 65)
+        gui.StudsOffset = Vector3.new(0, 3, 0); gui.MaxDistance = 90; gui.Parent = head
+        local label = Instance.new("TextLabel"); label.Name = "Label"; label.Size = UDim2.fromScale(1, 1)
+        label.BackgroundTransparency = 1; label.TextColor3 = colors.white; label.TextStrokeTransparency = 0.4
+        label.Font = Enum.Font.GothamBold; label.TextSize = 15; label.Parent = gui
+    end
+    gui.Label.Text = player.DisplayName .. "\n" .. Format.money(Economy.netWorth(profile)) .. " • " .. Economy.title(profile)
+end
+return World
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="SoundService" referent="13">
+    <Properties>
+      <string name="Name">SoundService</string>
+    </Properties>
+    <Item class="Folder" referent="14">
+      <Properties>
+        <string name="Name">MoneyEmpireSounds</string>
+      </Properties>
+    </Item>
+  </Item>
+  <Item class="StarterPlayer" referent="15">
+    <Properties>
+      <string name="Name">StarterPlayer</string>
+    </Properties>
+    <Item class="StarterPlayerScripts" referent="16">
+      <Properties>
+        <string name="Name">StarterPlayerScripts</string>
+      </Properties>
+      <Item class="LocalScript" referent="17">
+        <Properties>
+          <string name="Name">MoneyEmpireClient</string>
+          <string name="Source"><![CDATA[local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TweenService = game:GetService("TweenService")
+local UserInputService = game:GetService("UserInputService")
+local player = Players.LocalPlayer
+local Modules = ReplicatedStorage:WaitForChild("Modules")
+local Config = require(Modules.GameConfig)
+local Economy = require(Modules.Economy)
+local Format = require(Modules.NumberFormatter)
+local remotes = ReplicatedStorage:WaitForChild("Remotes")
+local action = remotes:WaitForChild("EmpireAction")
+local theme = {
+    background = Color3.fromRGB(14, 23, 34), panel = Color3.fromRGB(24, 37, 50),
+    card = Color3.fromRGB(32, 48, 62), muted = Color3.fromRGB(152, 174, 189),
+    white = Color3.fromRGB(238, 245, 248), mint = Color3.fromRGB(107, 241, 184),
+    gold = Color3.fromRGB(255, 211, 123), error = Color3.fromRGB(255, 140, 144),
+}
+local gui = Instance.new("ScreenGui"); gui.Name = "MoneyEmpireUI"; gui.ResetOnSpawn = false
+gui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling; gui.Parent = player:WaitForChild("PlayerGui")
+local function rounded(object, radius)
+    local corner = Instance.new("UICorner"); corner.CornerRadius = UDim.new(0, radius or 12); corner.Parent = object
+end
+local function frame(parent, size, position, color)
+    local f = Instance.new("Frame"); f.Size = size; f.Position = position; f.BackgroundColor3 = color or theme.panel
+    f.BorderSizePixel = 0; f.Parent = parent; rounded(f); return f
+end
+local function label(parent, text, size, position, fontSize, color)
+    local l = Instance.new("TextLabel"); l.Size = size; l.Position = position; l.BackgroundTransparency = 1
+    l.Text = text; l.TextColor3 = color or theme.white; l.Font = Enum.Font.GothamMedium
+    l.TextSize = fontSize or 14; l.TextXAlignment = Enum.TextXAlignment.Left
+    l.TextTruncate = Enum.TextTruncate.AtEnd; l.Parent = parent; return l
+end
+local function button(parent, text, size, position, callback, color)
+    local b = Instance.new("TextButton"); b.Size = size; b.Position = position; b.BackgroundColor3 = color or theme.mint
+    b.Text = text; b.TextSize = 14; b.Font = Enum.Font.GothamBold; b.TextColor3 = theme.background
+    b.BorderSizePixel = 0; b.AutoButtonColor = true; b.Parent = parent; rounded(b, 10)
+    b.Activated:Connect(callback); return b
+end
+local header = frame(gui, UDim2.new(1, -24, 0, 112), UDim2.fromOffset(12, 8), theme.background)
+label(header, "MONEY EMPIRE", UDim2.new(0.65, 0, 0, 27), UDim2.fromOffset(14, 7), 19, theme.mint).Font = Enum.Font.GothamBlack
+local edition = label(header, "FROM $1 TO BILLIONAIRE", UDim2.new(0.65, 0, 0, 16), UDim2.fromOffset(14, 34), 10, theme.muted)
+local homeButton = button(header, "Meu terreno", UDim2.fromOffset(108, 36), UDim2.new(1, -120, 0, 9), function() action:FireServer("Home") end, theme.gold)
+local statLabels = {}
+for i, name in ipairs({ "DINHEIRO", "PATRIMÔNIO", "RENDA / SEG" }) do
+    local cell = frame(header, UDim2.new(1 / 3, -12, 0, 48), UDim2.new((i - 1) / 3, 8, 0, 56), theme.panel)
+    label(cell, name, UDim2.new(1, -12, 0, 15), UDim2.fromOffset(8, 4), 9, theme.muted)
+    statLabels[i] = label(cell, "—", UDim2.new(1, -12, 0, 25), UDim2.fromOffset(8, 19), 20, if i == 3 then theme.mint else theme.white)
+end
+local panel = frame(gui, UDim2.fromOffset(440, 470), UDim2.fromOffset(12, 206), theme.background)
+local heading = label(panel, "Seu próximo grande passo", UDim2.new(1, -55, 0, 27), UDim2.fromOffset(14, 10), 18)
+button(panel, "×", UDim2.fromOffset(32, 32), UDim2.new(1, -42, 0, 8), function() panel.Visible = false end, theme.gold)
+local hint = label(panel, "Trabalhe 5 vezes e inaugure Água gelada.", UDim2.new(1, -28, 0, 23), UDim2.fromOffset(14, 40), 12, theme.muted)
+local tabs = frame(panel, UDim2.new(1, -24, 0, 38), UDim2.fromOffset(12, 72), theme.panel)
+local scroll = Instance.new("ScrollingFrame"); scroll.Name = "Content"; scroll.Size = UDim2.new(1, -20, 1, -126)
+scroll.Position = UDim2.fromOffset(10, 118); scroll.BackgroundTransparency = 1; scroll.BorderSizePixel = 0
+scroll.ScrollBarThickness = 4; scroll.ScrollBarImageColor3 = theme.mint; scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+scroll.CanvasSize = UDim2.new(); scroll.Parent = panel
+local layout = Instance.new("UIListLayout"); layout.Padding = UDim.new(0, 8); layout.SortOrder = Enum.SortOrder.LayoutOrder; layout.Parent = scroll
+local padding = Instance.new("UIPadding"); padding.PaddingBottom = UDim.new(0, 8); padding.Parent = scroll
+-- Keep the bottom of the screen free for Roblox's touch joystick and jump button.
+local footer = frame(gui, UDim2.new(1, -24, 0, 69), UDim2.fromOffset(12, 126), theme.background)
+local menuButton = button(footer, "Negócios", UDim2.new(0.35, -12, 0, 42), UDim2.fromOffset(9, 8), function() panel.Visible = not panel.Visible end, theme.gold)
+local workButton = button(footer, "TRABALHAR  +$2", UDim2.new(0.65, -15, 0, 42), UDim2.new(0.35, 4, 0, 8), function() action:FireServer("Work") end)
+local saveLabel = label(footer, "Conectando ao servidor…", UDim2.new(1, -20, 0, 14), UDim2.fromOffset(10, 52), 9, theme.muted)
+local toast = frame(gui, UDim2.new(0.8, 0, 0, 48), UDim2.new(0.1, 0, 0, 132), theme.mint)
+toast.Visible = false; toast.ZIndex = 10
+local toastLabel = label(toast, "", UDim2.new(1, -24, 1, 0), UDim2.fromOffset(12, 0), 14, theme.background)
+toastLabel.TextWrapped = true; toastLabel.TextTruncate = Enum.TextTruncate.None; toastLabel.ZIndex = 11
+local snapshot, activeTab, signature = nil, "Negócios", ""
+local cards, tabButtons = {}, {}
+local render
+for i, name in ipairs({ "Negócios", "Coleção", "Ranking", "Ajustes" }) do
+    tabButtons[name] = button(tabs, name, UDim2.new(0.25, -4, 1, -6), UDim2.new((i - 1) * 0.25, 2, 0, 3), function()
+        activeTab = name; signature = ""; if snapshot then render() end
+    end, theme.card)
+    tabButtons[name].TextColor3 = theme.white; tabButtons[name].TextSize = 12
+end
+local function clear()
+    cards = {}
+    for _, child in ipairs(scroll:GetChildren()) do if child:IsA("GuiObject") then child:Destroy() end end
+end
+local function card(height)
+    return frame(scroll, UDim2.new(1, -7, 0, height), UDim2.new(), theme.card)
+end
+render = function()
+    if not snapshot then return end
+    for name, b in pairs(tabButtons) do
+        b.BackgroundColor3 = if name == activeTab then theme.mint else theme.card
+        b.TextColor3 = if name == activeTab then theme.background else theme.white
+    end
+    heading.Text = if activeTab == "Negócios" then "Seu próximo grande passo" else activeTab
+    local count = 0
+    for _ in pairs(snapshot.Collection) do count += 1 end
+    hint.Text = if activeTab == "Coleção" then count .. " / " .. #Config.BusinessOrder .. " negócios descobertos"
+        elseif activeTab == "Ranking" then "Top 10 deste servidor • por patrimônio"
+        elseif activeTab == "Ajustes" then "Personalize sua experiência."
+        elseif not snapshot.Businesses.Water then "Trabalhe 5 vezes e inaugure Água gelada."
+        else "A renda cai direto na sua conta. Continue expandindo!"
+    if signature ~= activeTab then
+        signature = activeTab; clear()
+        if activeTab == "Negócios" or activeTab == "Coleção" then
+            for index, id in ipairs(Config.BusinessOrder) do
+                local c = Config.Businesses[id]
+                local row = card(if activeTab == "Negócios" then 122 else 74); row.LayoutOrder = index
+                local stripe = frame(row, UDim2.new(0, 4, 1, -16), UDim2.fromOffset(0, 8), Color3.fromRGB(unpack(c.Color)))
+                local title = label(row, c.Name, UDim2.new(1, -22, 0, 25), UDim2.fromOffset(14, 7), 16)
+                local detail = label(row, "", UDim2.new(1, -24, 0, 23), UDim2.fromOffset(14, 32), 11, theme.muted)
+                local info = label(row, "", UDim2.new(0.5, -10, 0, 44), UDim2.fromOffset(14, 65), 13, theme.mint)
+                info.TextWrapped = true; info.TextTruncate = Enum.TextTruncate.None
+                local buy
+                if activeTab == "Negócios" then
+                    buy = button(row, "", UDim2.new(0.5, -18, 0, 44), UDim2.new(0.5, 4, 0, 66), function()
+                        if snapshot then action:FireServer(if snapshot.Businesses[id] then "Upgrade" else "Buy", id) end
+                    end)
+                else info.Visible = false end
+                cards[id] = { Title = title, Detail = detail, Info = info, Button = buy, Stripe = stripe }
+            end
+        elseif activeTab == "Ajustes" then
+            local row = card(110)
+            label(row, "Movimento reduzido", UDim2.new(1, -24, 0, 25), UDim2.fromOffset(12, 8), 16)
+            cards.Motion = button(row, "", UDim2.new(1, -24, 0, 44), UDim2.fromOffset(12, 49), function()
+                action:FireServer("ReducedMotion", not snapshot.Settings.ReducedMotion)
+            end)
+            local about = card(122)
+            local text = label(about, "MVP • renda automática gratuita\nPatrimônio = saldo + 70% do capital aplicado.\nColeção registra suas descobertas.\nMoeda fictícia. Sem compras com Robux nesta versão.", UDim2.new(1, -24, 1, -16), UDim2.fromOffset(12, 8), 12, theme.muted)
+            text.TextWrapped = true; text.TextTruncate = Enum.TextTruncate.None
+        end
+    end
+    if activeTab == "Negócios" or activeTab == "Coleção" then
+        for _, id in ipairs(Config.BusinessOrder) do
+            local c, row, owned = Config.Businesses[id], cards[id], snapshot.Businesses[id]
+            local discovered = snapshot.Collection[id]
+            local unlocked = Economy.unlocked(snapshot, id)
+            row.Title.Text = if activeTab == "Coleção" and not discovered then "? ? ?   •   Não descoberto" else c.Name
+            row.Stripe.BackgroundColor3 = if activeTab == "Coleção" and not discovered then theme.muted else Color3.fromRGB(unpack(c.Color))
+            row.Detail.Text = if activeTab == "Coleção" and not discovered then "Explore a sequência de negócios para revelar."
+                else c.Rarity .. "  •  " .. c.Category .. (if owned then "  •  Nv. " .. owned.Level .. "/" .. c.MaxLevel else "")
+            if row.Button then
+                local maxed = owned and owned.Level >= c.MaxLevel
+                local cost = if owned then Economy.upgradeCost(id, owned) else c.Price
+                row.Info.Text = "+" .. Format.money(if owned then Economy.incomeFor(id, owned) else c.Income) .. "/s"
+                row.Button.Text = if maxed then "NÍVEL MÁXIMO" elseif not unlocked then "BLOQUEADO" else (if owned then "Upgrade " else "Comprar ") .. Format.money(cost)
+                row.Button.BackgroundColor3 = if maxed or not unlocked or snapshot.Cash < cost then theme.panel else theme.mint
+                row.Button.TextColor3 = if maxed or not unlocked or snapshot.Cash < cost then theme.muted else theme.background
+                row.Button.Active = not maxed and unlocked
+            end
+        end
+    elseif activeTab == "Ranking" then
+        clear()
+        for i, entry in ipairs(snapshot.Ranking) do
+            local row = card(74); row.LayoutOrder = i
+            label(row, "#" .. i .. "  " .. entry.Name, UDim2.new(1, -24, 0, 28), UDim2.fromOffset(12, 7), 15, if i == 1 then theme.gold else theme.white)
+            label(row, Format.money(entry.NetWorth) .. "  •  " .. entry.Businesses .. " negócios", UDim2.new(1, -24, 0, 22), UDim2.fromOffset(12, 39), 13, theme.muted)
+        end
+    elseif activeTab == "Ajustes" then
+        cards.Motion.Text = if snapshot.Settings.ReducedMotion then "ATIVADO" else "DESATIVADO"
+    end
+end
+remotes:WaitForChild("EmpireState").OnClientEvent:Connect(function(data)
+    snapshot = data
+    statLabels[1].Text = Format.money(data.Cash); statLabels[2].Text = Format.money(data.NetWorth)
+    statLabels[3].Text = "+" .. Format.money(data.Income)
+    saveLabel.Text = data.SaveStatus; saveLabel.TextColor3 = if data.Temporary then theme.gold else theme.muted
+    render()
+end)
+local toastId = 0
+remotes:WaitForChild("EmpireFeedback").OnClientEvent:Connect(function(ok, message, kind)
+    toastId += 1; local current = toastId
+    toast.Visible = true; toast.BackgroundColor3 = if ok then theme.mint else theme.error
+    toastLabel.Text = message
+    local folder = game:GetService("SoundService"):FindFirstChild("MoneyEmpireSounds")
+    local sound = folder and folder:FindFirstChild(if not ok then "Error" elseif kind == "Buy" then "Purchase" elseif kind == "Upgrade" then "LevelUp" else "Cash")
+    if sound and sound.SoundId ~= "" then sound:Play() end
+    if snapshot and not snapshot.Settings.ReducedMotion then
+        toast.Position = UDim2.new(0.1, 0, 0, 140)
+        TweenService:Create(toast, TweenInfo.new(0.18), { Position = UDim2.new(0.1, 0, 0, 126) }):Play()
+    end
+    task.delay(if kind == "Work" then 0.6 else 2.5, function() if toastId == current then toast.Visible = false end end)
+end)
+UserInputService.InputBegan:Connect(function(input, processed)
+    if not processed and input.KeyCode == Enum.KeyCode.E then action:FireServer("Work") end
+    if not processed and input.KeyCode == Enum.KeyCode.B then panel.Visible = not panel.Visible end
+end)
+local function resize()
+    local camera = workspace.CurrentCamera
+    if not camera then return end
+    local viewport = camera.ViewportSize
+    local small = viewport.X < 700
+    local width = if small then viewport.X - 24 else 440
+    local height = math.max(150, math.min(490, viewport.Y - 370))
+    panel.Size = UDim2.fromOffset(width, height)
+    if small and viewport.Y < 520 then panel.Visible = false end
+    for _, l in ipairs(statLabels) do l.TextSize = if viewport.X < 380 then 16 else 20 end
+    edition.TextSize = if viewport.X < 380 then 8 else 10
+end
+local cameraConnection
+local function bindCamera()
+    if cameraConnection then cameraConnection:Disconnect() end
+    if workspace.CurrentCamera then cameraConnection = workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(resize) end
+    resize()
+end
+workspace:GetPropertyChangedSignal("CurrentCamera"):Connect(bindCamera); bindCamera()
+action:FireServer("Sync")
+]]></string>
+        </Properties>
+      </Item>
+    </Item>
+  </Item>
+  <Item class="Workspace" referent="18">
+    <Properties>
+      <string name="Name">Workspace</string>
+      <float name="Gravity">196.2</float>
+      <bool name="NeedsPivotMigration">false</bool>
+      <bool name="StreamingEnabled">true</bool>
+    </Properties>
+  </Item>
+</roblox>

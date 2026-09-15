@@ -1,0 +1,9 @@
+{
+  "time_utc": "2026-09-15T12:59:04Z",
+  "compiled_files": 0,
+  "test_output": "PASS initial $1 and valid empty profile\nPASS full first-session progression\nPASS no bypass, duplication or forged business\nPASS all fifteen businesses reach max without broken balance\nPASS invalid persisted data rejected without reset\nPASS nonfinite and negative credit never changes balance\nPASS save profile deep roundtrip remains valid\nPASS lease excludes other servers and allows expiry recovery\nPASS server token bucket bounds remote spam\nPASS number formatter boundaries and all suffixes\n\n10 tests passed.\n",
+  "build": "C:\\Users\\Aluno\\Desktop\\Roblox\\build\\MoneyEmpire.rbxlx",
+  "studio_installed": null,
+  "engine_playtest": "not_run",
+  "cloud_datastore_test": "not_run"
+}

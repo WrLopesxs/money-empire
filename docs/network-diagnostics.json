@@ -1,0 +1,18 @@
+[
+  {
+    "url": "https://setup.rbxcdn.com/RobloxStudioInstaller.exe",
+    "error": "<urlopen error _ssl.c:1064: The handshake operation timed out>"
+  },
+  {
+    "url": "https://setup-aws.rbxcdn.com/RobloxStudioInstaller.exe",
+    "error": "<urlopen error _ssl.c:1064: The handshake operation timed out>"
+  },
+  {
+    "url": "https://clientsettingscdn.roblox.com/v2/client-version/WindowsStudio64",
+    "error": "<urlopen error _ssl.c:1064: The handshake operation timed out>"
+  },
+  {
+    "url": "https://create.roblox.com",
+    "error": "<urlopen error _ssl.c:1064: The handshake operation timed out>"
+  }
+]
