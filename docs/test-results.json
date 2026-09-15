@@ -5,5 +5,18 @@
   "build": "C:\\Users\\Aluno\\Desktop\\Roblox\\build\\MoneyEmpire.rbxlx",
   "studio_installed": null,
   "engine_playtest": "not_run",
-  "cloud_datastore_test": "not_run"
+  "cloud_datastore_test": "not_run",
+  "latest_ci": {
+    "source_commit": "ea945d048275a5b5caf105c50e0f868552eaf1ec",
+    "url": "https://github.com/WrLopesxs/money-empire/actions/runs/34979110782",
+    "status": "success",
+    "luau_sources_compiled": 15,
+    "economy_tests_passed": 10,
+    "market_and_layout_tests_passed": 14,
+    "archive_tests_passed": 3,
+    "windows_installer_tests": "skipped_on_linux",
+    "build_embedded_sources_verified": 13,
+    "engine_playtest": "not_run",
+    "cloud_datastore_test": "not_run"
+  }
 }
